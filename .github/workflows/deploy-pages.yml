@@ -24,23 +24,47 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
+      configure_outcome: ${{ steps.configure.outcome }}
+      upload_outcome: ${{ steps.upload.outcome }}
+      deployment_outcome: ${{ steps.deployment.outcome }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure Pages
+        id: configure
+        continue-on-error: true
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
       - name: Upload static site
+        id: upload
+        if: steps.configure.outcome == 'success'
+        continue-on-error: true
         uses: actions/upload-pages-artifact@v4
         with:
           path: .
 
       - name: Deploy
         id: deployment
+        if: steps.configure.outcome == 'success' && steps.upload.outcome == 'success'
+        continue-on-error: true
         uses: actions/deploy-pages@v4
+
+      - name: Fail when a Pages stage failed
+        if: always()
+        env:
+          CONFIGURE_OUTCOME: ${{ steps.configure.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+        run: |
+          echo "Configure: $CONFIGURE_OUTCOME"
+          echo "Upload: $UPLOAD_OUTCOME"
+          echo "Deploy: $DEPLOYMENT_OUTCOME"
+          test "$CONFIGURE_OUTCOME" = "success"
+          test "$UPLOAD_OUTCOME" = "success"
+          test "$DEPLOYMENT_OUTCOME" = "success"
 
   report:
     needs: deploy
@@ -70,8 +94,12 @@ jobs:
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
+          CONFIGURE_OUTCOME: ${{ needs.deploy.outputs.configure_outcome }}
+          UPLOAD_OUTCOME: ${{ needs.deploy.outputs.upload_outcome }}
+          DEPLOYMENT_OUTCOME: ${{ needs.deploy.outputs.deployment_outcome }}
           HTTP_CODE: ${{ steps.verify.outputs.http_code }}
           DEPLOY_SHA: ${{ github.sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const title = '[Pages] Deployment Status';
@@ -80,10 +108,14 @@ jobs:
             const httpCode = process.env.HTTP_CODE || 'unknown';
             const body = [
               '<!-- pages-status -->',
-              `- Deployment: **${result}**`,
+              `- Deployment job: **${result}**`,
+              `- Configure Pages: **${process.env.CONFIGURE_OUTCOME || 'not-run'}**`,
+              `- Upload artifact: **${process.env.UPLOAD_OUTCOME || 'not-run'}**`,
+              `- Deploy Pages: **${process.env.DEPLOYMENT_OUTCOME || 'not-run'}**`,
               `- HTTP check: **${httpCode}**`,
               `- URL: ${pageUrl}`,
               `- Commit: \`${process.env.DEPLOY_SHA}\``,
+              `- Run: ${process.env.RUN_URL}`,
               `- Checked at: ${new Date().toISOString()}`
             ].join('\n');
             const { owner, repo } = context.repo;
