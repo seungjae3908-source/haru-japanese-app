@@ -1,0 +1,60 @@
+        const blob=new Blob(chunks,{type:recorder.mimeType||'audio/webm'});
+        audioUrl=URL.createObjectURL(blob);
+        const player=document.getElementById('audioPlayer');
+        if(player){player.src=audioUrl;player.classList.remove('hidden')}
+        stopLiveAudio();
+        await finishPronunciation(blob, target);
+      };
+      recorder.start(200);
+      recordStartedAt=Date.now();
+      recordTimer=setInterval(updateRecordTimer,200);
+      setRecordingUi(true);
+      startLiveWave(mediaStream);
+      startRecognition(target);
+    }catch(err){
+      console.error(err); toast('마이크 권한을 허용한 뒤 다시 시도해 주세요.'); stopAllMedia();
+    }
+  }
+
+  function startRecognition(lang){
+    const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!R) return;
+    recognition=new R(); recognition.lang=LANG[lang].locale; recognition.continuous=true; recognition.interimResults=true;
+    recognition.onresult=e=>{
+      let final='',interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        if(e.results[i].isFinal) final+=t; else interim+=t;
+      }
+      if(final) recordTranscript=(recordTranscript+' '+final).trim();
+      const label=document.getElementById('recordLabel');
+      if(label) label.textContent=interim?`듣는 중: ${interim}`:'녹음 중';
+    };
+    recognition.onerror=e=>console.warn('speech recognition',e.error);
+    try{recognition.start()}catch(_){ }
+  }
+
+  function stopRecording(){
+    if(recorder&&recorder.state!=='inactive') recorder.stop();
+    if(recognition){try{recognition.stop()}catch(_){ } recognition=null;}
+    clearInterval(recordTimer); recordTimer=null;
+    setRecordingUi(false,true);
+    mediaStream?.getTracks().forEach(t=>t.stop()); mediaStream=null;
+  }
+  function stopAllMedia(){
+    clearInterval(recordTimer); recordTimer=null;
+    if(recognition){try{recognition.abort()}catch(_){ } recognition=null;}
+    if(recorder&&recorder.state!=='inactive'){try{recorder.stop()}catch(_){ }}
+    mediaStream?.getTracks().forEach(t=>t.stop()); mediaStream=null;
+    stopLiveAudio(); setRecordingUi(false);
+  }
+  function updateRecordTimer(){
+    const sec=Math.floor((Date.now()-recordStartedAt)/1000),el=document.getElementById('recordTimer');
+    if(el) el.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+  }
+  function setRecordingUi(live,processing=false){
+    document.getElementById('recordDot')?.classList.toggle('live',live);
+    const label=document.getElementById('recordLabel'); if(label)label.textContent=live?'녹음 중':processing?'분석 중':'녹음 준비';
+    const start=document.getElementById('startRecord'), stop=document.getElementById('stopRecord'), retry=document.getElementById('retryRecord');
+    if(start)start.disabled=live||processing;if(stop)stop.disabled=!live;if(retry)retry.disabled=live||processing||!audioUrl;
+  }
