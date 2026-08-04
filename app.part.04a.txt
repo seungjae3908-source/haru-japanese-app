@@ -1,0 +1,60 @@
+  }
+  function autoCorrelate(buf,sr){
+    let rms=0;for(const v of buf)rms+=v*v;rms=Math.sqrt(rms/buf.length);if(rms<.01)return-1;
+    const min=Math.floor(sr/450),max=Math.min(Math.floor(sr/70),buf.length-1);let best=-1,bestCorr=0;
+    for(let lag=min;lag<=max;lag+=2){let corr=0;for(let i=0;i<buf.length-lag;i++)corr+=buf[i]*buf[i+lag];if(corr>bestCorr){bestCorr=corr;best=lag}}
+    return best>0?sr/best:-1;
+  }
+
+  function buildDiffHtml(input,target,lang){
+    const expected=lang==='en'?target.toLowerCase().replace(/[^a-z0-9' ]/g,'').split(/\s+/):lang==='ko'?target.replace(/[\p{P}\p{S}]/gu,'').split(/\s+/):Array.from(target.replace(/[\s\p{P}\p{S}]/gu,''));
+    const heard=lang==='en'?input.toLowerCase().replace(/[^a-z0-9' ]/g,'').split(/\s+/):lang==='ko'?input.replace(/[\p{P}\p{S}]/gu,'').split(/\s+/):Array.from(input.replace(/[\s\p{P}\p{S}]/gu,''));
+    const used=new Set();
+    const tokens=expected.map(e=>{let best=-1,bestScore=0;heard.forEach((h,i)=>{if(used.has(i))return;const s=similarity(h,e,lang);if(s>bestScore){bestScore=s;best=i}});if(best>=0&&bestScore>=65){used.add(best);return`<span class="token ok">${esc(e)}</span>`}return`<span class="token miss">${esc(e)}</span>`});
+    heard.forEach((h,i)=>{if(!used.has(i))tokens.push(`<span class="token extra">+ ${esc(h)}</span>`)});
+    return `<div class="mt12"><b>구간 비교</b><div class="diff">${tokens.join('')}</div><small class="muted">초록: 인식됨 · 빨강: 빠짐/다름 · 주황: 추가로 인식됨</small></div>`;
+  }
+
+  async function requestNotification(){
+    if(!('Notification'in window)){toast('이 브라우저는 알림을 지원하지 않습니다.');return}
+    const result=await Notification.requestPermission();toast(result==='granted'?'알림 권한을 허용했습니다.':'알림 권한이 허용되지 않았습니다.');
+    if(result==='granted')new Notification('하루언어 알림 테스트',{body:'아침·점심·저녁 한 문장 학습을 이어가세요.'});
+  }
+  function exportData(){
+    const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`haru-language-${todayKey()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }
+  async function installApp(){
+    if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;return}
+    toast('브라우저 메뉴에서 “홈 화면에 추가”를 선택해 주세요.');
+  }
+
+  $app.addEventListener('click',async e=>{
+    const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.tab){state.tab=b.dataset.tab;save();stopAllMedia();render();window.scrollTo({top:0,behavior:'smooth'});return}
+    if(b.dataset.path){state.path=b.dataset.path;save();render();return}
+    if(b.dataset.daypart){state.dayPart=b.dataset.daypart;save();render();return}
+    if(b.dataset.speak){speak(decodeURIComponent(b.dataset.text),b.dataset.speak,Number(b.dataset.rate||1));return}
+    if(b.dataset.level){state.level=Number(b.dataset.level);save();render();return}
+    if(b.dataset.lesson){scheduleLesson(Number(b.dataset.lesson));state.tab='today';save();render();return}
+    if(b.dataset.saveword!=null){saveWord(Number(b.dataset.saveword));return}
+    if(b.dataset.review!=null){const m=state.mistakes[Number(b.dataset.review)],i=DATA.lessons.findIndex(l=>l.id===m.id);if(i>=0){state.lessonIndex=i;state.tab=m.type==='pronunciation'?'pronunciation':'today';state.dayPart=m.type==='pronunciation'?'evening':'lunch';save();render()}return}
+    const a=b.dataset.action||b.id;
+    if(a==='theme'){state.theme=state.theme==='dark'?'light':'dark';save();render();return}
+    if(a==='learned'){markLearned();return}
+    if(a==='check-recall'){checkRecall();return}
+    if(a==='next-pron'){scheduleLesson((state.lessonIndex+1)%DATA.lessons.length);return}
+    if(a==='startRecord'){await startRecording();return}
+    if(a==='stopRecord'){stopRecording();return}
+    if(a==='retryRecord'){resetRecorderUi(true);return}
+    if(a==='save-settings'){
+      state.dailyGoal=Number(document.getElementById('dailyGoal').value);state.fontScale=Number(document.getElementById('fontScale').value);state.reminders={morning:document.getElementById('remMorning').value,lunch:document.getElementById('remLunch').value,evening:document.getElementById('remEvening').value};save();render();toast('설정을 저장했습니다.');return
+    }
+    if(a==='notification'){await requestNotification();return}
+    if(a==='install'){await installApp();return}
+    if(a==='export'){exportData();return}
+    if(a==='reset'&&confirm('학습 기록을 모두 초기화할까요?')){localStorage.removeItem(KEY);state=structuredClone(defaultState);render();toast('초기화했습니다.');return}
+  });
+
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;});
+  window.addEventListener('beforeunload',stopAllMedia);
+  if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
