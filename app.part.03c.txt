@@ -1,0 +1,10 @@
+    for(let i=0;i+frame<channel.length;i+=frame){
+      const slice=channel.subarray(i,i+frame);let sum=0;for(let j=0;j<slice.length;j++)sum+=slice[j]*slice[j];const r=Math.sqrt(sum/slice.length);rms.push(r);
+      if(r>.015 && pitches.length<140 && i%(frame*3)===0){const p=autoCorrelate(slice,sr);if(p>70&&p<450)pitches.push(p)}
+    }
+    await ctx.close();
+    const active=rms.filter(v=>v>.012),silenceRatio=rms.length?1-active.length/rms.length:1;
+    const mean=active.length?active.reduce((a,b)=>a+b,0)/active.length:0;
+    const amplitudeVariation=mean&&active.length?Math.sqrt(active.reduce((a,b)=>a+(b-mean)**2,0)/active.length)/mean:0;
+    let pitchRange=0;if(pitches.length>4){pitches.sort((a,b)=>a-b);const lo=pitches[Math.floor(pitches.length*.1)],hi=pitches[Math.floor(pitches.length*.9)];pitchRange=12*Math.log2(hi/lo)}
+    return{duration:audio.duration,silenceRatio,amplitudeVariation,pitchRange};
