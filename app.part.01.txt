@@ -1,0 +1,130 @@
+    `;
+  }
+
+  function render(){
+    setTheme();
+    let content='';
+    if(state.tab==='today') content=viewToday();
+    if(state.tab==='course') content=viewCourse();
+    if(state.tab==='pronunciation') content=viewPronunciation();
+    if(state.tab==='review') content=viewReview();
+    if(state.tab==='profile') content=viewProfile();
+    $app.innerHTML=appShell(content);
+    if(state.tab==='pronunciation') drawEmptyWave();
+  }
+
+  function viewToday(){
+    const l=current(), {source,target}=pathParts();
+    const targetText=langText(l,target), sourceText=langText(l,source);
+    const completedToday=state.learned.filter(v=>v.date===todayKey()).length;
+    const goalPct=clamp(Math.round(completedToday/state.dailyGoal*100),0,100);
+    return `
+      <section class="hero">
+        <span class="pill">🔥 ${state.streak}일 연속</span>
+        <h2>하루 한 문장을<br>세 언어로 완전히 익혀요</h2>
+        <p>아침에는 배우고, 점심에는 기억하고, 저녁에는 직접 말하며 발음을 교정합니다.</p>
+        <div class="hero-row"><span class="pill">오늘 ${completedToday}/${state.dailyGoal}</span><span class="pill">${state.xp} XP</span><span class="pill">평균 ${scoreAverage()}점</span></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>학습 방향</h2><p>출발 언어와 목표 언어를 선택하세요.</p></div></div>
+        <div class="grid">${PATHS.map(p=>`<button class="path-card ${state.path===p[0]?'active':''}" data-path="${p[0]}"><b>${p[1]}</b><small>${p[2]}</small></button>`).join('')}</div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>오늘의 학습</h2><p>${esc(l.category)} · Level ${l.level}</p></div><span class="lang-tag">${LANG[target].flag} ${LANG[target].name}</span></div>
+        <div class="card">
+          <div class="session-tabs">
+            ${[['morning','아침 · 배우기'],['lunch','점심 · 회상'],['evening','저녁 · 말하기']].map(v=>`<button class="session-tab ${state.dayPart===v[0]?'active':''}" data-daypart="${v[0]}">${v[1]}</button>`).join('')}
+          </div>
+          <div class="divider"></div>
+          ${state.dayPart==='morning' ? morningBlock(l,source,target) : state.dayPart==='lunch' ? lunchBlock(l,source,target) : eveningBlock(l,source,target)}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title"><div><h2>오늘 목표</h2><p>작게 시작하고 매일 반복합니다.</p></div><b>${goalPct}%</b></div>
+        <div class="progress"><span style="width:${goalPct}%"></span></div>
+      </section>
+    `;
+  }
+
+  function triLanguage(l){
+    return `
+      <div class="grid3 mt16">
+        <div class="word"><span class="lang-tag">🇰🇷 한국어</span><b class="mt8">${esc(l.ko)}</b></div>
+        <div class="word"><span class="lang-tag">🇯🇵 日本語</span><b class="mt8">${esc(l.ja)}</b><small>${esc(l.kana)}</small></div>
+        <div class="word"><span class="lang-tag">🇺🇸 English</span><b class="mt8">${esc(l.en)}</b></div>
+      </div>`;
+  }
+
+  function morningBlock(l,source,target){
+    return `
+      <span class="lang-tag">${LANG[target].flag} 목표 문장</span>
+      <div class="sentence">${esc(langText(l,target))}</div>
+      ${readingText(l,target)?`<div class="reading">${esc(readingText(l,target))}</div>`:''}
+      <div class="translation">${esc(langText(l,source))}</div>
+      <div class="literal">직역: ${esc(l.literal)}</div>
+      <div class="actions mt16">
+        <button class="btn primary" data-speak="${target}" data-text="${encodeURIComponent(langText(l,target))}">🔊 보통 음성</button>
+        <button class="btn" data-speak="${target}" data-rate="0.65" data-text="${encodeURIComponent(langText(l,target))}">🐢 느린 음성</button>
+        <button class="btn good" data-action="learned">✓ 배웠어요</button>
+      </div>
+      ${triLanguage(l)}
+      <div class="divider"></div>
+      <b>핵심 단어</b><div class="word-list mt8">${l.vocab.map((w,i)=>`<button class="word" data-saveword="${i}"><b>${esc(w[0])}</b><small>${esc(w[1])} · ${esc(w[2])}</small></button>`).join('')}</div>
+      <div class="feedback mt12"><b>문법 포인트</b><br>${esc(l.grammar)}</div>
+    `;
+  }
+
+  function lunchBlock(l,source,target){
+    return `
+      <span class="lang-tag">${LANG[source].flag} 이 문장을 ${LANG[target].name}로 바꿔 보세요</span>
+      <div class="sentence">${esc(langText(l,source))}</div>
+      <div class="field mt16"><label for="recallInput">기억나는 문장 입력</label><textarea id="recallInput" autocomplete="off" placeholder="정답을 보지 말고 직접 입력하세요."></textarea></div>
+      <div class="actions mt12"><button class="btn primary" data-action="check-recall">정답 확인</button><button class="btn" data-speak="${target}" data-rate="0.65" data-text="${encodeURIComponent(langText(l,target))}">힌트 음성</button></div>
+      <div id="answerResult"></div>
+    `;
+  }
+
+  function eveningBlock(l,source,target){
+    return `
+      <span class="lang-tag">🎙️ 저녁 발음 훈련</span>
+      <div class="sentence">${esc(langText(l,target))}</div>
+      ${readingText(l,target)?`<div class="reading">${esc(readingText(l,target))}</div>`:''}
+      <div class="translation">${esc(langText(l,source))}</div>
+      <div class="feedback mt12"><b>오늘의 발음 포인트</b><br>${esc(l.tips[target])}</div>
+      <div class="actions mt16"><button class="btn primary" data-tab="pronunciation">발음교정 시작</button><button class="btn" data-speak="${target}" data-text="${encodeURIComponent(langText(l,target))}">원문 듣기</button></div>
+    `;
+  }
+
+  function viewCourse(){
+    const levels=[1,2,3,4];
+    const filtered=DATA.lessons.filter(l=>l.level<=state.level);
+    return `
+      <section class="hero"><span class="pill">총 ${DATA.lessons.length}개 핵심 수업</span><h2>기초부터 실전까지<br>단계별 통합 과정</h2><p>각 수업은 한국어·일본어·영어 문장, 단어, 문법과 발음 포인트를 함께 제공합니다.</p></section>
+      <section class="section card">
+        <div class="section-title"><div><h2>표시 난이도</h2><p>현재 Level ${state.level}까지 표시</p></div></div>
+        <div class="actions">${levels.map(l=>`<button class="btn ${state.level===l?'primary':''}" data-level="${l}">Level ${l}</button>`).join('')}</div>
+      </section>
+      <section class="section"><div class="lesson-list">${filtered.map((l,i)=>{
+        const originalIndex=DATA.lessons.indexOf(l);
+        return `<button class="lesson" data-lesson="${originalIndex}"><div class="lesson-num">${String(i+1).padStart(2,'0')}</div><div class="lesson-body"><b>${esc(l.title)}</b><small>${esc(l.category)} · ${esc(l.ko)}</small></div><span>›</span></button>`;
+      }).join('')}</div></section>
+    `;
+  }
+
+  function viewPronunciation(){
+    const l=current(), {target}=pathParts();
+    const targetText=langText(l,target);
+    const last=state.pronunciationHistory.at(-1);
+    return `
+      <section class="hero"><span class="pill">${LANG[target].flag} ${LANG[target].name} 발음</span><h2>듣고, 녹음하고,<br>구간별로 고쳐요</h2><p>문장 인식 정확도와 녹음의 속도·침묵·리듬·억양 변화를 따로 분석합니다.</p></section>
+      <section class="section card">
+        <div class="section-title"><div><h2>연습 문장</h2><p>${esc(l.title)}</p></div><button class="btn" data-action="next-pron">다음 문장</button></div>
+        <div class="sentence">${esc(targetText)}</div>
+        ${readingText(l,target)?`<div class="reading">${esc(readingText(l,target))}</div>`:''}
+        <div class="translation">${esc(l.ko)}</div>
+        <div class="actions mt16"><button class="btn primary" data-speak="${target}" data-text="${encodeURIComponent(targetText)}">🔊 원문</button><button class="btn" data-speak="${target}" data-rate="0.65" data-text="${encodeURIComponent(targetText)}">🐢 느리게</button></div>
+        <div class="feedback mt12"><b>발음 포인트</b><br>${esc(l.tips[target])}</div>
+      </section>
