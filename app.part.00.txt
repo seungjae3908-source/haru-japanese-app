@@ -1,0 +1,130 @@
+(() => {
+  'use strict';
+
+  const DATA = window.HARU_DATA;
+  const KEY = 'haru-language-state-v1';
+  const $app = document.getElementById('app');
+  const $toast = document.getElementById('toast');
+
+  const LANG = {
+    ko: { name: '한국어', flag: '🇰🇷', locale: 'ko-KR' },
+    ja: { name: '일본어', flag: '🇯🇵', locale: 'ja-JP' },
+    en: { name: '영어', flag: '🇺🇸', locale: 'en-US' }
+  };
+
+  const PATHS = [
+    ['ko-ja','한국어 → 일본어','한국어를 보고 일본어로 말하기'],
+    ['ko-en','한국어 → 영어','한국어를 보고 영어로 말하기'],
+    ['ja-ko','일본어 → 한국어','일본어를 읽고 한국어로 이해하기'],
+    ['en-ko','영어 → 한국어','영어를 읽고 한국어로 이해하기'],
+    ['ja-en','일본어 → 영어','일본어를 영어로 바꾸기'],
+    ['en-ja','영어 → 일본어','영어를 일본어로 바꾸기']
+  ];
+
+  const defaultState = {
+    tab:'today', path:'ko-ja', lessonIndex:0, level:4, dayPart:'morning',
+    xp:0, streak:1, learned:[], mistakes:[], savedWords:[], scores:[],
+    theme:'light', fontScale:100, dailyGoal:3,
+    reminders:{morning:'08:00',lunch:'12:30',evening:'20:30'},
+    pronunciationHistory:[]
+  };
+
+  let state = load();
+  let recorder = null;
+  let recognition = null;
+  let mediaStream = null;
+  let chunks = [];
+  let recordStartedAt = 0;
+  let recordTimer = null;
+  let recordTranscript = '';
+  let audioUrl = '';
+  let waveformRaf = 0;
+  let liveAudioContext = null;
+  let liveAnalyser = null;
+  let liveData = null;
+  let installPrompt = null;
+
+  function load(){
+    try{
+      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+      return saved ? {...structuredClone(defaultState), ...saved, reminders:{...defaultState.reminders,...(saved.reminders||{})}} : structuredClone(defaultState);
+    }catch(_){ return structuredClone(defaultState); }
+  }
+  function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+  function esc(v=''){ return String(v).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+  function clamp(n,min,max){ return Math.min(max,Math.max(min,n)); }
+  function current(){ return DATA.lessons[state.lessonIndex % DATA.lessons.length]; }
+  function pathParts(){ const [source,target] = state.path.split('-'); return {source,target}; }
+  function langText(lesson, code){ return lesson[code]; }
+  function readingText(lesson, code){ return code === 'ja' ? lesson.kana : ''; }
+  function todayKey(){ return new Date().toISOString().slice(0,10); }
+  function isLearned(){ return state.learned.some(v => v.id === current().id && v.date === todayKey()); }
+  function scoreAverage(){ return state.scores.length ? Math.round(state.scores.reduce((a,b)=>a+b.score,0)/state.scores.length) : 0; }
+  function addXp(amount, reason){
+    state.xp += amount;
+    save();
+    toast(`${reason} · +${amount} XP`);
+  }
+  function toast(msg){
+    $toast.textContent = msg;
+    $toast.classList.add('show');
+    clearTimeout(toast.t);
+    toast.t = setTimeout(()=>$toast.classList.remove('show'),2200);
+  }
+  function setTheme(){
+    document.documentElement.dataset.theme = state.theme;
+    document.documentElement.style.fontSize = `${state.fontScale}%`;
+  }
+  function normalize(text, lang){
+    let s = String(text || '').toLowerCase().normalize('NFKC');
+    s = s.replace(/[\s\p{P}\p{S}]/gu,'');
+    if(lang === 'en') s = s.replace(/[^a-z0-9]/g,'');
+    return s;
+  }
+  function levenshtein(a,b){
+    const m=a.length,n=b.length,dp=Array(n+1).fill(0).map((_,i)=>i);
+    for(let i=1;i<=m;i++){
+      let prev=dp[0]; dp[0]=i;
+      for(let j=1;j<=n;j++){
+        const old=dp[j];
+        dp[j]=Math.min(dp[j]+1,dp[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));
+        prev=old;
+      }
+    }
+    return dp[n];
+  }
+  function similarity(input,target,lang){
+    const a=normalize(input,lang), b=normalize(target,lang);
+    if(!a || !b) return 0;
+    return Math.round((1-levenshtein(a,b)/Math.max(a.length,b.length))*100);
+  }
+  function expectedDuration(text,lang){
+    if(lang==='en') return Math.max(1.4, text.trim().split(/\s+/).length * .48 + .35);
+    return Math.max(1.4, normalize(text,lang).length * .19 + .45);
+  }
+  function scheduleLesson(index){
+    state.lessonIndex = clamp(index,0,DATA.lessons.length-1);
+    save(); render(); window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function speak(text, lang, rate=1){
+    if(!('speechSynthesis' in window)){ toast('이 브라우저는 음성 재생을 지원하지 않습니다.'); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = LANG[lang].locale; u.rate = rate; u.pitch = 1;
+    const voices = speechSynthesis.getVoices();
+    const voice = voices.find(v=>v.lang.toLowerCase().startsWith(lang==='ja'?'ja':lang==='ko'?'ko':'en'));
+    if(voice) u.voice = voice;
+    speechSynthesis.speak(u);
+  }
+
+  function appShell(content){
+    const navs=[['today','🏠','오늘'],['course','🗺️','과정'],['pronunciation','🎙️','발음'],['review','🧠','복습'],['profile','📊','내 기록']];
+    return `
+      <main class="app">
+        <header class="topbar">
+          <div class="brand"><div class="brand-mark">하</div><div><h1>하루언어</h1><small>한국어 · 日本語 · English</small></div></div>
+          <button class="icon-btn" data-action="theme" aria-label="테마 변경">${state.theme==='dark'?'☀️':'🌙'}</button>
+        </header>
+        ${content}
+      </main>
+      <nav class="nav" aria-label="주 메뉴">${navs.map(n=>`<button data-tab="${n[0]}" class="${state.tab===n[0]?'active':''}"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>
