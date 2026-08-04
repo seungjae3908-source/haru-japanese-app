@@ -1,0 +1,18 @@
+{
+  "name": "하루언어 - 한국어 일본어 영어",
+  "short_name": "하루언어",
+  "description": "한국어·일본어·영어 통합 학습과 발음교정 웹앱",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#4f46e5",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='120' fill='%234f46e5'/%3E%3Ctext x='256' y='330' text-anchor='middle' font-size='270' font-family='sans-serif' font-weight='800' fill='white'%3E%E3%81%82%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
