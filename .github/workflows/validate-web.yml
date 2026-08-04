@@ -1,0 +1,52 @@
+name: Validate Web App
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/**
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/data.js
+          node --check src/storage.js
+          node --check src/learning.js
+          node --check src/speech.js
+          node --check src/ui.js
+          node --check src/main.js
+          node --check sw.js
+      - name: Validate learning content and engine
+        run: |
+          node --input-type=module <<'NODE'
+          import { LESSONS } from './src/data.js';
+          import { similarity, diffTokens } from './src/learning.js';
+          const required = ['id','level','title','topic','ko','ja','jaKana','en','words','grammar','reading','readingKo','question','answer'];
+          const errors = [];
+          for (const lesson of LESSONS) {
+            for (const key of required) if (lesson[key] == null || lesson[key] === '') errors.push(`${lesson.id}:${key}`);
+            if (!Array.isArray(lesson.words) || lesson.words.length < 3) errors.push(`${lesson.id}:words`);
+          }
+          if (new Set(LESSONS.map(x => x.id)).size !== LESSONS.length) errors.push('duplicate lesson ids');
+          if (similarity('Hello Nice to meet you','Hello. Nice to meet you.','en') < 95) errors.push('English similarity');
+          if (similarity('こんにちはお会いできてうれしいです','こんにちは。お会いできてうれしいです。','ja') < 95) errors.push('Japanese similarity');
+          if (!diffTokens('hello meet','hello nice meet','en').some(x => x.type === 'miss')) errors.push('diff engine');
+          if (errors.length) throw new Error(errors.join('\n'));
+          console.log(`Validated ${LESSONS.length} lessons across ${new Set(LESSONS.map(x => x.level)).size} levels.`);
+          NODE
+      - name: Verify entrypoint and offline assets
+        run: |
+          grep -q 'type="module" src="./src/main.js"' index.html
+          grep -q "'./src/main.js'" sw.js
+          grep -q 'manifest.webmanifest' index.html

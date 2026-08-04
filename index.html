@@ -1,19 +1,17 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#4f46e5" />
-  <meta name="description" content="한국어·일본어·영어 통합 학습과 발음교정 웹앱" />
-  <title>하루언어 · 한국어 일본어 영어</title>
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#5b5bd6">
+  <meta name="description" content="한국어·일본어·영어 통합 학습 및 발음 코칭 웹앱">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <title>하루언어</title>
 </head>
 <body>
-  <noscript>이 앱을 사용하려면 JavaScript가 필요합니다.</noscript>
-  <div id="app"></div>
+  <div id="app" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="./data.js"></script>
-  <script src="./bootstrap.js"></script>
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>
