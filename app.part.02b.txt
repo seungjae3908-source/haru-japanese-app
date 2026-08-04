@@ -1,0 +1,60 @@
+    return `
+      <section class="hero"><span class="pill">나의 학습 기록</span><h2>조금씩 쌓인 기록이<br>실력을 만듭니다</h2><p>학습량과 발음 점수, 복습할 내용을 한눈에 확인하세요.</p></section>
+      <section class="section card">
+        <div class="stat-grid">
+          <div class="stat"><strong>${state.xp}</strong><small>누적 XP</small></div>
+          <div class="stat"><strong>${learnedCount}</strong><small>학습 문장</small></div>
+          <div class="stat"><strong>${scoreAverage()}</strong><small>회상 평균</small></div>
+          <div class="stat"><strong>${pronAvg}</strong><small>발음 평균</small></div>
+        </div>
+      </section>
+      <section class="section card">
+        <div class="section-title"><div><h2>학습 설정</h2><p>내 생활에 맞게 조정</p></div></div>
+        <div class="form-row">
+          <div class="field"><label>하루 목표</label><select id="dailyGoal"><option value="1" ${state.dailyGoal===1?'selected':''}>1문장</option><option value="3" ${state.dailyGoal===3?'selected':''}>3문장</option><option value="5" ${state.dailyGoal===5?'selected':''}>5문장</option></select></div>
+          <div class="field"><label>글자 크기</label><select id="fontScale"><option value="90" ${state.fontScale===90?'selected':''}>작게</option><option value="100" ${state.fontScale===100?'selected':''}>보통</option><option value="115" ${state.fontScale===115?'selected':''}>크게</option><option value="125" ${state.fontScale===125?'selected':''}>아주 크게</option></select></div>
+        </div>
+        <div class="form-row mt12">
+          <div class="field"><label>아침 알림</label><input type="time" id="remMorning" value="${state.reminders.morning}"></div>
+          <div class="field"><label>점심 알림</label><input type="time" id="remLunch" value="${state.reminders.lunch}"></div>
+        </div>
+        <div class="field mt12"><label>저녁 알림</label><input type="time" id="remEvening" value="${state.reminders.evening}"></div>
+        <div class="actions mt16"><button class="btn primary" data-action="save-settings">설정 저장</button><button class="btn" data-action="notification">알림 권한 요청</button><button class="btn outline" data-action="install">홈 화면 설치</button></div>
+        <div class="notice mt12">웹판은 브라우저가 완전히 종료되면 정확한 예약 알림을 보장할 수 없습니다. 최종 APK에서는 Android 네이티브 알림으로 교체합니다.</div>
+      </section>
+      <section class="section card">
+        <div class="section-title"><div><h2>데이터 관리</h2><p>현재 기기에 저장됩니다.</p></div></div>
+        <div class="actions"><button class="btn" data-action="export">기록 내보내기</button><button class="btn bad" data-action="reset">전체 초기화</button></div>
+      </section>
+    `;
+  }
+
+  function checkRecall(){
+    const input=document.getElementById('recallInput')?.value||'';
+    const l=current(), {target}=pathParts();
+    const targetText=langText(l,target), score=similarity(input,targetText,target);
+    const ok=score>=80;
+    const result=document.getElementById('answerResult');
+    result.innerHTML=`<div class="feedback ${ok?'good':'bad'} mt12"><b>${score}점</b><br>${ok?'잘 기억했습니다.':'정답: '+esc(targetText)}</div>`;
+    state.scores.push({id:l.id,score,time:Date.now(),type:'recall'});
+    if(!ok) state.mistakes.push({id:l.id,type:'recall',target:targetText,input,score,time:Date.now()});
+    else addXp(8,'회상 성공');
+    save();
+  }
+
+  function markLearned(){
+    const l=current();
+    if(!state.learned.some(v=>v.id===l.id&&v.date===todayKey())) state.learned.push({id:l.id,date:todayKey(),time:Date.now()});
+    addXp(5,'오늘 문장 학습');
+    render();
+  }
+
+  function saveWord(index){
+    const l=current(),w=l.vocab[index];
+    const item={ko:w[0],ja:w[1],en:w[2],lessonId:l.id};
+    if(!state.savedWords.some(v=>v.ko===item.ko&&v.lessonId===item.lessonId)){
+      state.savedWords.push(item); addXp(2,'단어 저장'); save();
+    }else toast('이미 저장한 단어입니다.');
+  }
+
+  async function startRecording(){
