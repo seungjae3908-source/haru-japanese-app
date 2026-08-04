@@ -24,29 +24,52 @@ jobs:
           node --check src/storage.js
           node --check src/learning.js
           node --check src/speech.js
+          node --check src/diagnostic.js
+          node --check src/reading.js
           node --check src/ui.js
           node --check src/main.js
           node --check sw.js
-      - name: Validate learning content and engine
+      - name: Validate learning content and adaptive engines
         run: |
           node --input-type=module <<'NODE'
           import { LESSONS } from './src/data.js';
-          import { similarity, diffTokens } from './src/learning.js';
-          const required = ['id','level','title','topic','ko','ja','jaKana','en','words','grammar','reading','readingKo','question','answer'];
+          import { DIAGNOSTIC_QUESTIONS, recommendedLevel } from './src/diagnostic.js';
+          import { READING_STORIES } from './src/reading.js';
+          import { similarity, diffTokens, buildAssembly, joinAssembly, weakSegments, normalize } from './src/learning.js';
           const errors = [];
+          const required = ['id','level','title','topic','ko','ja','jaKana','en','words','grammar','reading','readingKo','question','answer'];
           for (const lesson of LESSONS) {
             for (const key of required) if (lesson[key] == null || lesson[key] === '') errors.push(`${lesson.id}:${key}`);
             if (!Array.isArray(lesson.words) || lesson.words.length < 3) errors.push(`${lesson.id}:words`);
           }
           if (new Set(LESSONS.map(x => x.id)).size !== LESSONS.length) errors.push('duplicate lesson ids');
+          if (DIAGNOSTIC_QUESTIONS.length !== 10) errors.push('diagnostic question count');
+          if (new Set(DIAGNOSTIC_QUESTIONS.map(x => x.id)).size !== DIAGNOSTIC_QUESTIONS.length) errors.push('duplicate diagnostic ids');
+          for (const q of DIAGNOSTIC_QUESTIONS) {
+            if (!Array.isArray(q.options) || q.options.length !== 4 || q.answer < 0 || q.answer > 3) errors.push(`${q.id}:options`);
+          }
+          if (recommendedLevel(0) !== 1 || recommendedLevel(10) !== 5) errors.push('diagnostic level mapping');
+          if (READING_STORIES.length < 9) errors.push('reading story count');
+          if (new Set(READING_STORIES.map(x => x.id)).size !== READING_STORIES.length) errors.push('duplicate reading ids');
+          for (const story of READING_STORIES) {
+            for (const key of ['id','level','title','ko','ja','jaKana','en','question','options','answer','explanation','keywords']) if (story[key] == null || story[key] === '') errors.push(`${story.id}:${key}`);
+            if (!Array.isArray(story.options) || story.options.length !== 4 || story.answer < 0 || story.answer > 3) errors.push(`${story.id}:answer`);
+          }
           if (similarity('Hello Nice to meet you','Hello. Nice to meet you.','en') < 95) errors.push('English similarity');
           if (similarity('こんにちはお会いできてうれしいです','こんにちは。お会いできてうれしいです。','ja') < 95) errors.push('Japanese similarity');
-          if (!diffTokens('hello meet','hello nice meet','en').some(x => x.type === 'miss')) errors.push('diff engine');
+          const english = 'How can I get to the station?';
+          const assembled = buildAssembly(english,'en','test');
+          if (normalize(joinAssembly(assembled.sort((a,b)=>Number(a.id.slice(1))-Number(b.id.slice(1))),'en'),'en') !== normalize(english,'en')) errors.push('assembly preservation');
+          const diff = diffTokens('hello meet','hello nice meet','en');
+          if (!diff.some(x => x.type === 'miss')) errors.push('diff engine');
+          if (!weakSegments(diff,'en').includes('nice')) errors.push('weak segment engine');
           if (errors.length) throw new Error(errors.join('\n'));
-          console.log(`Validated ${LESSONS.length} lessons across ${new Set(LESSONS.map(x => x.level)).size} levels.`);
+          console.log(`Validated ${LESSONS.length} lessons, ${DIAGNOSTIC_QUESTIONS.length} diagnostic questions, and ${READING_STORIES.length} reading stories.`);
           NODE
       - name: Verify entrypoint and offline assets
         run: |
           grep -q 'type="module" src="./src/main.js"' index.html
-          grep -q "'./src/main.js'" sw.js
+          grep -q 'styles-v03.css' index.html
+          grep -q "'./src/diagnostic.js'" sw.js
+          grep -q "'./src/reading.js'" sw.js
           grep -q 'manifest.webmanifest' index.html
