@@ -1,0 +1,60 @@
+
+      <section class="section record-box">
+        <div class="record-state"><span id="recordDot" class="dot"></span><span id="recordLabel">녹음 준비</span><span id="recordTimer" class="timer">00:00</span></div>
+        <canvas id="wave" class="wave" width="720" height="120"></canvas>
+        <div class="actions">
+          <button id="startRecord" class="btn bad">● 녹음 시작</button>
+          <button id="stopRecord" class="btn" disabled>■ 녹음 종료</button>
+          <button id="retryRecord" class="btn" disabled>↻ 다시 하기</button>
+        </div>
+        <audio id="audioPlayer" class="audio-player hidden" controls></audio>
+        <div class="notice mt12">마이크와 음성 인식은 HTTPS의 Chrome·Edge에서 가장 안정적입니다. 억양 점수는 원어민 음원과의 정밀 비교가 아니라 녹음 안의 높낮이 변화 분석입니다.</div>
+      </section>
+
+      <section id="pronResult" class="section">${last ? pronunciationResultHtml(last) : '<div class="card empty"><span class="emoji">🎧</span>녹음을 완료하면 분석 결과가 여기에 표시됩니다.</div>'}</section>
+    `;
+  }
+
+  function pronunciationResultHtml(r){
+    const score = r.overall ?? 0;
+    return `<div class="card">
+      <div class="section-title"><div><h2>발음 분석 결과</h2><p>${new Date(r.time).toLocaleString('ko-KR')}</p></div></div>
+      <div class="grid">
+        <div class="center"><div class="score-ring" style="--score:${score}"><strong>${score}</strong></div><b class="mt8">종합 연습 점수</b><div class="muted">정밀 음소 진단이 아닌 웹 1차 분석</div></div>
+        <div>
+          ${metric('문장 인식 정확도',r.accuracy,r.transcript?'말한 내용이 목표 문장과 얼마나 일치하는지':'음성 인식을 사용할 수 없어 미측정')}
+          ${metric('말하기 속도',r.speed,'목표 문장 길이에 맞는 속도')}
+          ${metric('유창성',r.fluency,'긴 침묵과 끊김의 비율')}
+          ${metric('억양 변화',r.intonation,'목소리 높낮이가 지나치게 평평하지 않은지')}
+        </div>
+      </div>
+      <div class="divider"></div>
+      <b>인식된 문장</b><div class="feedback ${r.accuracy>=75?'good':'warn'} mt8">${esc(r.transcript || '이 브라우저에서 음성 인식 결과를 받지 못했습니다.')}</div>
+      ${r.diffHtml || ''}
+      <div class="feedback-list">
+        ${r.feedback.map(f=>`<div class="feedback ${f.type}">${esc(f.text)}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+  function metric(name,value,desc){
+    return `<div class="metric"><div class="metric-head"><b>${name}</b><span>${value==null?'—':value+'점'}</span></div><div class="progress"><span style="width:${value||0}%"></span></div><small class="muted">${desc}</small></div>`;
+  }
+
+  function viewReview(){
+    const due=state.mistakes.slice().reverse();
+    return `
+      <section class="hero"><span class="pill">오답 ${due.length}개</span><h2>틀린 이유를 알고<br>제때 다시 복습해요</h2><p>회상·발음에서 부족했던 문장을 모아 반복합니다.</p></section>
+      <section class="section">
+        <div class="section-title"><div><h2>오답노트</h2><p>최근 오답 우선</p></div></div>
+        ${due.length?`<div class="lesson-list">${due.map((m,i)=>`<div class="lesson"><div class="lesson-num">${m.type==='pronunciation'?'🎙️':'✍️'}</div><div class="lesson-body"><b>${esc(m.target)}</b><small>내 답: ${esc(m.input||'인식 실패')} · ${m.score||0}점</small></div><button class="btn" data-review="${state.mistakes.length-1-i}">복습</button></div>`).join('')}</div>`:'<div class="card empty"><span class="emoji">🌱</span>아직 저장된 오답이 없습니다.</div>'}
+      </section>
+      <section class="section">
+        <div class="section-title"><div><h2>개인 단어장</h2><p>${state.savedWords.length}개 저장</p></div></div>
+        ${state.savedWords.length?`<div class="word-list">${state.savedWords.map(w=>`<div class="word"><b>${esc(w.ko)}</b><small>${esc(w.ja)} · ${esc(w.en)}</small></div>`).join('')}</div>`:'<div class="card empty"><span class="emoji">📚</span>오늘 학습에서 단어를 눌러 저장하세요.</div>'}
+      </section>
+    `;
+  }
+
+  function viewProfile(){
+    const learnedCount=new Set(state.learned.map(v=>v.id)).size;
+    const pronAvg=state.pronunciationHistory.length?Math.round(state.pronunciationHistory.reduce((a,b)=>a+b.overall,0)/state.pronunciationHistory.length):0;
