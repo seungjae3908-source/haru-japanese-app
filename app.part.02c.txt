@@ -1,0 +1,10 @@
+    const {target}=pathParts();
+    if(!navigator.mediaDevices?.getUserMedia){ toast('마이크 녹음을 지원하지 않는 브라우저입니다.'); return; }
+    try{
+      resetRecorderUi(false);
+      mediaStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      chunks=[]; recordTranscript=''; audioUrl='';
+      const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
+      recorder=new MediaRecorder(mediaStream,mime?{mimeType:mime}:undefined);
+      recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+      recorder.onstop=async()=>{
