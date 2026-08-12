@@ -1,5 +1,5 @@
-const CACHE='haru-language-v03';
-const ASSETS=['./','./index.html','./styles.css','./styles-v03.css','./manifest.webmanifest','./src/data.js','./src/storage.js','./src/learning.js','./src/speech.js','./src/diagnostic.js','./src/reading.js','./src/ui.js','./src/main.js'];
+const CACHE='haru-language-v04';
+const ASSETS=['./','./index.html','./styles.css','./styles-v03.css','./rewards.css','./manifest.webmanifest','./src/data.js','./src/storage.js','./src/learning.js','./src/speech.js','./src/diagnostic.js','./src/reading.js','./src/ui.js','./src/main.js','./src/rewards.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
