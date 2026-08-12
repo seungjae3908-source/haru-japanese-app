@@ -28,6 +28,7 @@ jobs:
           node --check src/reading.js
           node --check src/ui.js
           node --check src/main.js
+          node --check src/rewards.js
           node --check sw.js
       - name: Validate learning content and adaptive engines
         run: |
@@ -66,10 +67,30 @@ jobs:
           if (errors.length) throw new Error(errors.join('\n'));
           console.log(`Validated ${LESSONS.length} lessons, ${DIAGNOSTIC_QUESTIONS.length} diagnostic questions, and ${READING_STORIES.length} reading stories.`);
           NODE
+      - name: Validate reward ledger and anti-duplicate rules
+        run: |
+          node --input-type=module <<'NODE'
+          import { rewardDefaults, applyLearningSnapshot, REWARD_POLICY } from './src/rewards.js';
+          const at = new Date('2026-08-12T12:00:00Z');
+          let reward = rewardDefaults();
+          reward = applyLearningSnapshot(reward,{xp:10,daily:{date:'2026-08-12',morning:false,lunch:false,evening:false}},at);
+          if (reward.balance !== 0) throw new Error('first sync must not grant retroactive points');
+          reward = applyLearningSnapshot(reward,{xp:22,daily:{date:'2026-08-12',morning:true,lunch:true,evening:true}},at);
+          if (reward.balance !== 22) throw new Error(`expected 22P, got ${reward.balance}`);
+          const again = applyLearningSnapshot(reward,{xp:22,daily:{date:'2026-08-12',morning:true,lunch:true,evening:true}},at);
+          if (again.balance !== reward.balance) throw new Error('duplicate sync granted points');
+          const capped = applyLearningSnapshot(again,{xp:1000,daily:{date:'2026-08-12',morning:true,lunch:true,evening:true}},at);
+          if (capped.day.earned !== REWARD_POLICY.dailyCap) throw new Error('daily cap not enforced');
+          console.log(`Reward ledger validated with ${capped.day.earned}P daily cap.`);
+          NODE
       - name: Verify entrypoint and offline assets
         run: |
           grep -q 'type="module" src="./src/main.js"' index.html
+          grep -q 'type="module" src="./src/rewards.js"' index.html
           grep -q 'styles-v03.css' index.html
+          grep -q 'rewards.css' index.html
           grep -q "'./src/diagnostic.js'" sw.js
           grep -q "'./src/reading.js'" sw.js
+          grep -q "'./src/rewards.js'" sw.js
+          grep -q "'./rewards.css'" sw.js
           grep -q 'manifest.webmanifest' index.html
