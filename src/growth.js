@@ -17,7 +17,6 @@ export function growthDefaults(){
   };
 }
 
-function clone(value){return JSON.parse(JSON.stringify(value));}
 function readJson(key){
   try{return JSON.parse(localStorage.getItem(key)||'null');}
   catch{return null;}
@@ -90,7 +89,7 @@ export function syncGrowthState(inputGrowth,learning,now=new Date()){
   const lesson=currentLesson(learning);
   if(complete&&lesson){
     const old=growth.reviewPlans[lesson.id];
-    if(!old||old.status==='done'){
+    if(!old||(old.status==='done'&&old.scheduledFrom!==today)){
       growth.reviewPlans[lesson.id]={
         lessonId:lesson.id,
         stage:0,
@@ -181,9 +180,9 @@ function missionCard(learning,growth){
   section.className='card growth-mission';
   section.dataset.growthUi='mission';
   section.innerHTML=`
-    <div class="growth-title"><div><span class="growth-eyebrow">오늘의 미션</span><h2>${done}/3 완료</h2></div><strong>🔥 ${growth.streak}일</strong></div>
+    <div class="growth-title"><div><span class="growth-eyebrow">오늘의 미션</span><h2>${done}/3 완료</h2></div><strong>🔥 ${growth.streak||1}일</strong></div>
     <div class="growth-mission-list">${items.map(item=>`<div class="growth-mission-item ${item.done?'done':''}"><span>${item.done?'✅':'○'}</span><b>${item.label}</b></div>`).join('')}</div>
-    <p class="growth-note">예정 복습 ${due}개 · 최고 연속 ${growth.bestStreak}일</p>
+    <p class="growth-note">예정 복습 ${due}개 · 최고 연속 ${growth.bestStreak||1}일</p>
   `;
   return section;
 }
@@ -209,7 +208,7 @@ function badgeSection(learning,growth){
   const section=document.createElement('section');
   section.className='card growth-badges';
   section.dataset.growthUi='badges';
-  section.innerHTML=`<div class="growth-title"><div><span class="growth-eyebrow">무료 성장 기록</span><h2>배지 ${unlocked}/${badges.length}</h2></div><strong>최고 ${growth.bestStreak}일</strong></div><div class="growth-badge-grid">${badges.map(item=>`<div class="growth-badge ${item.unlocked?'unlocked':'locked'}"><span>${item.icon}</span><b>${item.name}</b><small>${item.desc}</small></div>`).join('')}</div>`;
+  section.innerHTML=`<div class="growth-title"><div><span class="growth-eyebrow">무료 성장 기록</span><h2>배지 ${unlocked}/${badges.length}</h2></div><strong>최고 ${growth.bestStreak||1}일</strong></div><div class="growth-badge-grid">${badges.map(item=>`<div class="growth-badge ${item.unlocked?'unlocked':'locked'}"><span>${item.icon}</span><b>${item.name}</b><small>${item.desc}</small></div>`).join('')}</div>`;
   return section;
 }
 
@@ -258,7 +257,7 @@ function sync(){
   let growth=normalizeGrowthState(readJson(GROWTH_KEY));
   growth=syncGrowthState(growth,learning,new Date());
   writeJson(GROWTH_KEY,growth);
-  if(Number(learning.streak||0)!==growth.streak){
+  if(Number(learning.streak||0)!==(growth.streak||1)){
     learning.streak=growth.streak||1;
     writeJson(LEARNING_KEY,learning);
   }
@@ -287,20 +286,20 @@ function mount(){
     if(streak)streak.textContent=`🔥 ${growth.streak||1}일 연속`;
 
     if(learning.tab==='today'){
-      const progress=document.querySelector('.progress');
+      const progress=document.querySelector('.app-shell > .progress');
       if(progress)progress.insertAdjacentElement('afterend',missionCard(learning,growth));
     }
     if(learning.tab==='review'){
       const shell=document.querySelector('.app-shell');
       const reviews=reviewSection(learning,growth);
       if(shell&&reviews){
-        const hero=shell.querySelector('.hero');
+        const hero=shell.querySelector(':scope > .hero');
         if(hero)hero.insertAdjacentElement('afterend',reviews);else shell.appendChild(reviews);
       }
     }
     if(learning.tab==='profile'){
       const shell=document.querySelector('.app-shell');
-      const firstMetrics=shell?.querySelector('.grid.three');
+      const firstMetrics=shell?.querySelector(':scope > .grid.three');
       const badges=badgeSection(learning,growth);
       const backup=backupSection();
       if(firstMetrics){firstMetrics.insertAdjacentElement('afterend',badges);badges.insertAdjacentElement('afterend',backup);}
