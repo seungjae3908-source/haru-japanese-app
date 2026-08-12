@@ -29,6 +29,7 @@ jobs:
           node --check src/ui.js
           node --check src/main.js
           node --check src/rewards.js
+          node --check src/growth.js
           node --check sw.js
       - name: Validate learning content and adaptive engines
         run: |
@@ -83,14 +84,41 @@ jobs:
           if (capped.day.earned !== REWARD_POLICY.dailyCap) throw new Error('daily cap not enforced');
           console.log(`Reward ledger validated with ${capped.day.earned}P daily cap.`);
           NODE
+      - name: Validate free growth streak and spaced review
+        run: |
+          node --input-type=module <<'NODE'
+          import { LESSONS } from './src/data.js';
+          import { growthDefaults, computeStreak, syncGrowthState, dueGrowthReviews, reviewRemembered, reviewAgain } from './src/growth.js';
+          if (computeStreak(['2026-08-10','2026-08-11','2026-08-12']) !== 3) throw new Error('streak sequence failed');
+          if (computeStreak(['2026-08-08','2026-08-10','2026-08-11']) !== 2) throw new Error('streak gap failed');
+          let growth = growthDefaults();
+          const fullDay = {level:1,lessonIndex:0,source:'ko',target:'ja',daily:{date:'2026-08-12',morning:true,lunch:true,evening:true}};
+          growth = syncGrowthState(growth,fullDay,new Date('2026-08-12T12:00:00Z'));
+          const lessonId = LESSONS[0].id;
+          if (growth.streak !== 1) throw new Error('first active day streak failed');
+          if (growth.reviewPlans[lessonId]?.nextDue !== '2026-08-13') throw new Error('first spaced review due date failed');
+          const nextDay = {...fullDay,daily:{date:'2026-08-13',morning:true,lunch:false,evening:false}};
+          growth = syncGrowthState(growth,nextDay,new Date('2026-08-13T12:00:00Z'));
+          if (growth.streak !== 2) throw new Error('second active day streak failed');
+          if (dueGrowthReviews(growth,nextDay,new Date('2026-08-13T12:00:00Z')).length !== 1) throw new Error('due review detection failed');
+          const remembered = reviewRemembered(growth,lessonId,new Date('2026-08-13T12:00:00Z'));
+          if (remembered.reviewPlans[lessonId]?.nextDue !== '2026-08-15') throw new Error('remembered review interval failed');
+          const retry = reviewAgain(growth,lessonId,new Date('2026-08-13T12:00:00Z'));
+          if (retry.reviewPlans[lessonId]?.nextDue !== '2026-08-14') throw new Error('retry review interval failed');
+          console.log('Free growth streak and spaced review validated.');
+          NODE
       - name: Verify entrypoint and offline assets
         run: |
           grep -q 'type="module" src="./src/main.js"' index.html
           grep -q 'type="module" src="./src/rewards.js"' index.html
+          grep -q 'type="module" src="./src/growth.js"' index.html
           grep -q 'styles-v03.css' index.html
           grep -q 'rewards.css' index.html
+          grep -q 'growth.css' index.html
           grep -q "'./src/diagnostic.js'" sw.js
           grep -q "'./src/reading.js'" sw.js
           grep -q "'./src/rewards.js'" sw.js
+          grep -q "'./src/growth.js'" sw.js
           grep -q "'./rewards.css'" sw.js
+          grep -q "'./growth.css'" sw.js
           grep -q 'manifest.webmanifest' index.html
