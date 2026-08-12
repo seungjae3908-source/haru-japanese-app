@@ -1,0 +1,32 @@
+.reward-balance-chip{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:999px;background:var(--card,#fff);border:1px solid var(--border,#e8e8ef);font-size:.9rem;white-space:nowrap}
+.reward-balance-chip b{font-size:.95rem}
+.reward-card,.reward-center{margin-top:14px}
+.reward-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.reward-head h2{margin:3px 0 0}
+.reward-head>strong{font-size:1.65rem;letter-spacing:-.04em}
+.reward-eyebrow{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.08em;opacity:.64}
+.reward-badge{padding:6px 9px;border-radius:999px;background:rgba(91,91,214,.1);font-size:.75rem;font-weight:700;white-space:nowrap}
+.reward-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.reward-metrics>div{padding:12px;border-radius:14px;background:rgba(91,91,214,.06);text-align:center}
+.reward-metrics b{display:block;font-size:1.05rem}
+.reward-metrics span{display:block;margin-top:3px;font-size:.76rem;opacity:.68}
+.reward-note{margin:12px 0 0;font-size:.78rem;line-height:1.55;opacity:.72}
+.reward-action-list{display:grid;gap:10px;margin-top:16px}
+.reward-action{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px;border:1px solid var(--border,#e8e8ef);border-radius:14px}
+.reward-action>div{min-width:0}
+.reward-action b{display:block}
+.reward-action small{display:block;margin-top:4px;line-height:1.45;opacity:.7}
+.reward-action .btn{flex:0 0 auto}
+.reward-ledger{margin-top:18px}
+.reward-ledger h3{margin-bottom:8px}
+.reward-ledger>div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--border,#e8e8ef)}
+.reward-ledger>div span{min-width:0}
+.reward-ledger>div b{white-space:nowrap}
+@media(max-width:560px){
+  .reward-balance-chip{padding:7px 9px}
+  .reward-head{gap:10px}
+  .reward-head>strong{font-size:1.35rem}
+  .reward-metrics{grid-template-columns:1fr}
+  .reward-action{align-items:flex-start;flex-direction:column}
+  .reward-action .btn{width:100%}
+}
