@@ -218,15 +218,31 @@ function escapeHtml(value){
 
 let mounting=false;
 let scheduled=false;
+let rewardObserver=null;
+let lastMountSignature='';
 
 function mountRewards(){
   if(mounting||typeof document==='undefined')return;
   const app=document.querySelector('#app');
   if(!app)return;
   mounting=true;
+  rewardObserver?.disconnect();
   try{
     const reward=syncRewards();
     const learning=readLearningState();
+    const signature=JSON.stringify({
+      tab:learning.tab||'today',
+      balance:reward.balance,
+      today:reward.day.earned,
+      lifetime:reward.lifetimeEarned,
+      lastEntry:reward.ledger.at(-1)?.id||''
+    });
+    const expectedView=learning.tab==='profile'?'center':learning.tab==='today'?'summary':'none';
+    const uiPresent=Boolean(
+      document.querySelector('[data-reward-ui="balance"]')&&
+      (expectedView==='none'||document.querySelector(`[data-reward-ui="${expectedView}"]`))
+    );
+    if(signature===lastMountSignature&&uiPresent)return;
 
     document.querySelectorAll('[data-reward-ui]').forEach(node=>node.remove());
 
@@ -252,8 +268,10 @@ function mountRewards(){
         else shell.appendChild(center);
       }
     }
+    lastMountSignature=signature;
   }finally{
     mounting=false;
+    if(rewardObserver&&app.isConnected)rewardObserver.observe(app,{childList:true,subtree:true});
   }
 }
 
@@ -272,8 +290,8 @@ export function initRewards(){
     mountRewards();
     const app=document.querySelector('#app');
     if(app){
-      const observer=new MutationObserver(scheduleMount);
-      observer.observe(app,{childList:true,subtree:true});
+      rewardObserver=new MutationObserver(scheduleMount);
+      rewardObserver.observe(app,{childList:true,subtree:true});
     }
     document.addEventListener('click',()=>setTimeout(scheduleMount,0),true);
     window.addEventListener('focus',scheduleMount);
